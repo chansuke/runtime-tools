@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
+	rspec "github.com/opencontainers/runtime-spec/specs-go"
 	rfc2119 "github.com/opencontainers/runtime-tools/error"
 	"github.com/opencontainers/runtime-tools/generate"
 	"github.com/opencontainers/runtime-tools/specerror"
@@ -124,6 +126,50 @@ func TestEnvCaching(t *testing.T) {
 	}
 	g.AddProcessEnv("", "")
 	assert.Equal(t, []string(nil), g.Config.Process.Env)
+}
+
+func TestEnvCachingFromExistingSpec(t *testing.T) {
+	tests := []struct {
+		name string
+		new  func(t *testing.T) generate.Generator
+	}{
+		{
+			name: "from template",
+			new: func(t *testing.T) generate.Generator {
+				t.Helper()
+
+				g, err := generate.NewFromTemplate(strings.NewReader(`{"process":{"env":["PATH=/bin","TERM=xterm"]}}`))
+				if err != nil {
+					t.Fatal(err)
+				}
+				return g
+			},
+		},
+		{
+			name: "from spec",
+			new: func(t *testing.T) generate.Generator {
+				t.Helper()
+
+				return generate.NewFromSpec(&rspec.Spec{
+					Process: &rspec.Process{
+						Env: []string{"PATH=/bin", "TERM=xterm"},
+					},
+				})
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := tt.new(t)
+
+			g.AddProcessEnv("PATH", "/usr/bin")
+			g.AddMultipleProcessEnv([]string{"TERM=vt100"})
+
+			expected := []string{"PATH=/usr/bin", "TERM=vt100"}
+			assert.Equal(t, expected, g.Config.Process.Env)
+		})
+	}
 }
 
 func TestMultipleEnvCaching(t *testing.T) {

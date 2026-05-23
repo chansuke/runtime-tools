@@ -322,7 +322,8 @@ func NewFromTemplate(r io.Reader) (Generator, error) {
 func createEnvCacheMap(env []string) map[string]int {
 	envMap := make(map[string]int, len(env))
 	for i, val := range env {
-		envMap[val] = i
+		parts := strings.SplitN(val, "=", 2)
+		envMap[parts[0]] = i
 	}
 	return envMap
 }
